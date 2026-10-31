@@ -29,6 +29,7 @@ import torch
 from src.cli import FlowTrainingArgs, parse_flow_args
 from src.data import get_cifar10_loaders, get_fashion_mnist_loaders, get_mnist_loaders
 from src.flowmatching import FlowMatching, WeightSpaceFlowModel
+from src.flowmatching.artifacts import generated_models_dir
 from src.flowmatching.bn_recalibration import has_batchnorm, recalibrate_bn_stats
 from src.flowmatching.mean_flow import WeightSpaceMeanFlow
 from src.flowmatching.meanflow_model import WeightSpaceMeanFlowModel
@@ -75,6 +76,7 @@ def evaluate_generated_weights(
     model_builder,
     test_loader: torch.utils.data.DataLoader,
     calibration_loader: torch.utils.data.DataLoader | None = None,
+    n_steps: int = 1,
 ) -> dict:
     """Evaluate generated model weights on dataset test split.
 
@@ -84,21 +86,22 @@ def evaluate_generated_weights(
         model_builder: Callable that returns a fresh target model.
         test_loader: MNIST test data loader.
         calibration_loader: Optional loader for BN recalibration.
+        n_steps: Sampling step count used to label saved weights.
 
     Returns:
         Dictionary containing evaluation results.
     """
     # Save generated weights if requested
     if args.save_generated_models:
-        generated_models_dir = args.save_dir / "generated_models"
-        generated_models_dir.mkdir(parents=True, exist_ok=True)
+        output_dir = generated_models_dir(args.save_dir, n_steps)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         for i in range(args.n_samples):
-            model_path = generated_models_dir / f"generated_model_{i:04d}.pt"
+            model_path = output_dir / f"generated_model_{i:04d}.pt"
             torch.save(generated_weights[i].cpu(), model_path)
 
         logger.info(
-            f"Saved {args.n_samples} generated models to {generated_models_dir}"
+            f"Saved {args.n_samples} generated models to {output_dir}"
         )
 
     # Evaluate each generated model
@@ -238,8 +241,13 @@ def generate_and_evaluate(
         model_builder,
         test_loader,
         calibration_loader=calibration_loader,
+        n_steps=n_steps,
     )
     results["n_steps"] = n_steps
+    if args.save_generated_models:
+        results["generated_models_dir"] = str(
+            generated_models_dir(args.save_dir, n_steps).relative_to(args.save_dir)
+        )
     return results
 
 
@@ -514,6 +522,13 @@ def _train_meanflow(
 def main() -> None:
     """Main entry point for flow model training."""
     args = parse_flow_args()
+    if any((args.save_dir / name).exists() for name in (
+        "flow_model.pt", "pca.npz", "config.json", "evaluation_results.json", "generated_models"
+    )):
+        raise FileExistsError(
+            f"Output directory already contains a run: {args.save_dir}. "
+            "Choose a new --save-dir to avoid mixing or overwriting generated weights."
+        )
 
     # Set random seeds for reproducibility
     random.seed(RANDOM_SEED)
@@ -531,7 +546,7 @@ def main() -> None:
     logger.info(f"Output directory: {args.save_dir}")
     logger.info(f"Method: {args.method}")
     # Log GPU info
-    log_device_info()
+    log_device_info(args.device)
 
     model_builder = lambda: _build_target_model(args)
     prototype_model = model_builder()
@@ -574,6 +589,11 @@ def main() -> None:
             device=args.device,
         )
         logger.info("Loaded final checkpoints for MeanFlow target: %d samples", len(weight_objects))
+        if len(weight_objects) < args.batch_size:
+            raise ValueError(
+                f"Generator batch size ({args.batch_size}) exceeds the number of final "
+                f"checkpoints ({len(weight_objects)}). Reduce --batch-size or collect more checkpoints."
+            )
 
         # cifar10+resnet18 has ~11M params x ~3900 history checkpoints (~166GB),
         # which cannot fit in memory.  Use streaming PCA for this combination;

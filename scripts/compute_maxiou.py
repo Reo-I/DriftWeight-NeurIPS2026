@@ -19,23 +19,22 @@ Usage examples
 --------------
 # MNIST / MLP (single result dir):
 python -m scripts.compute_maxiou \
-    --result-dir results/ablation_20260418_122750_27527_no_drift \
-    --checkpoint-dir data/MNIST/checkpoint
+    --result-dir results/mnist \
+    --checkpoint-dir data/MNIST/checkpoint --steps 1
 
 # CIFAR-10 / ResNet-18 (enables BN recalibration automatically):
 python -m scripts.compute_maxiou \
-    --result-dir results/local_...your_cifar10_run... \
+    --result-dir results/cifar10_resnet18 \
     --checkpoint-dir data/CIFAR10_resnet18/checkpoint
 
 The script reads dataset/arch information from ``config.json`` inside
 ``--result-dir`` and auto-selects loaders accordingly.
 
-Caveat
-------
-``generated_models/*.pt`` is overwritten across ``eval_steps`` during
-training, so only the final step's weights are available after the run
-finishes.  To compute MaxIoU for other step counts, re-generate weights
-from ``flow_model.pt`` and ``pca.npz`` first.
+Saved weights
+-------------
+``generated_models/steps_<N>/*.pt`` stores each step count separately.
+Use ``--steps N`` to select it. Legacy flat directories are only accepted
+when their last-evaluated step count matches the request.
 """
 
 from __future__ import annotations
@@ -63,6 +62,7 @@ from src.flowmatching.bn_recalibration import (  # noqa: E402
     recalibrate_bn_stats,
 )
 from src.flowmatching.weight_space import WeightSpaceObjectStateDict  # noqa: E402
+from src.flowmatching.artifacts import resolve_generated_models_dir  # noqa: E402
 from src.models import MLP, ResNet18, ResNet20  # noqa: E402
 
 
@@ -87,8 +87,7 @@ def _build_model(dataset: str, arch: str) -> torch.nn.Module:
 def _get_test_loader(
     dataset: str, arch: str, batch_size: int = 256
 ) -> tuple[DataLoader, DataLoader | None]:
-    """Return (test_loader, calibration_loader). calibration_loader is None
-    except for CIFAR-10/ResNet-18 (DeepWeightFlow-style BN recalibration)."""
+    """Return test and BatchNorm calibration loaders, matching training evaluation."""
     if dataset == "mnist":
         _, test = get_mnist_loaders(batch_size=batch_size)
         return test, None
@@ -100,7 +99,7 @@ def _get_test_loader(
             "data/CIFAR10_resnet18/raw" if arch == "resnet18" else "data/CIFAR10/raw"
         )
         _, test = get_cifar10_loaders(batch_size=batch_size, data_root=cifar_root)
-        calibration = test if arch == "resnet18" else None
+        calibration = test if arch in {"resnet18", "resnet20"} else None
         return test, calibration
     raise ValueError(f"Unsupported dataset: {dataset}")
 
@@ -231,6 +230,8 @@ def _collect_generated_wrong_masks(
 
 def _loo_maxiou(masks: np.ndarray) -> np.ndarray:
     """Leave-one-out MaxIoU per row (diversity ceiling)."""
+    if masks.shape[0] < 2:
+        raise ValueError("Leave-one-out MaxIoU requires at least two source models.")
     iou = _masks_to_iou_matrix(masks, masks)
     np.fill_diagonal(iou, -np.inf)
     return iou.max(axis=1)
@@ -248,6 +249,10 @@ def _summarize(values: np.ndarray, prefix: str) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--steps", type=int, default=1,
+        help="Sampling step count of the saved generated models (default: 1).",
+    )
     parser.add_argument(
         "--result-dir",
         type=Path,
@@ -270,7 +275,7 @@ def main() -> None:
         "--device",
         type=str,
         default=None,
-        help="Override device (default: auto cuda/mps/cpu).",
+        help="Override device (default: CUDA if available, otherwise CPU).",
     )
     parser.add_argument(
         "--batch-size", type=int, default=256, help="Test-time batch size."
@@ -279,7 +284,7 @@ def main() -> None:
         "--output",
         type=Path,
         default=None,
-        help="Output JSON path (default: <result-dir>/maxiou_results.json).",
+        help="Output JSON path (default: <result-dir>/maxiou_steps_<N>.json).",
     )
     args = parser.parse_args()
 
@@ -292,7 +297,7 @@ def main() -> None:
     dataset = config["dataset"]
     arch = config["arch"]
 
-    generated_dir = result_dir / "generated_models"
+    generated_dir = resolve_generated_models_dir(result_dir, args.steps)
     if not generated_dir.exists():
         raise FileNotFoundError(
             f"{generated_dir} not found. "
@@ -356,6 +361,7 @@ def main() -> None:
         "result_dir": str(result_dir),
         "dataset": dataset,
         "arch": arch,
+        "n_steps": args.steps,
         "n_generated": int(gen_masks.shape[0]),
         "n_training": int(train_masks.shape[0]),
         "n_test_samples": int(train_masks.shape[1]),
@@ -365,7 +371,8 @@ def main() -> None:
         "maxiou_training_loo": ceiling.tolist(),
     }
 
-    out_path = args.output or (result_dir / "maxiou_results.json")
+    out_path = args.output or (result_dir / f"maxiou_steps_{args.steps}.json")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w") as f:
         json.dump(summary, f, indent=2)
 

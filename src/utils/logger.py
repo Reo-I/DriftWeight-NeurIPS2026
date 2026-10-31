@@ -8,18 +8,7 @@ from pathlib import Path
 ################################################################
 # PATH CONSTANTS
 ################################################################
-PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]  # WeightGen root
-SRC_DIR: Path = Path(__file__).resolve().parents[1]  # src directory
-
-# # config file
-# CONFIG_FILE: Path = HOME / "setting.yml"
-
-# # data directory
-# DATA_DIR: Path = HOME / "data"
-# RAW_DATA_DIR: Path = DATA_DIR / "raw"
-# INTERMEDIATE_DATA_DIR: Path = DATA_DIR / "intermediate"
-# OUTPUT_DATA_DIR: Path = DATA_DIR / "output"
-# REFERENCE_DATA_DIR: Path = DATA_DIR / "reference"
+PROJECT_ROOT: Path = Path(__file__).resolve().parents[2]
 
 # timestamp (date + time)
 TIMESTAMP: str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

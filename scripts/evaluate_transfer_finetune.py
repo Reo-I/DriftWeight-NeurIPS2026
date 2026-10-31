@@ -18,7 +18,7 @@ python -m scripts.evaluate_transfer_finetune \
 
 python -m scripts.evaluate_transfer_finetune \
     --init-source generated \
-    --result-dir results/1688774.pbs1_weightgen_cifar10_resnet18 \
+    --result-dir results/cifar10_resnet18 \
     --checkpoint-dir data/CIFAR10_resnet18/checkpoint \
     --target-dataset stl10 \
     --n-models 5
@@ -48,6 +48,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.flowmatching import FlowMatching, WeightSpaceFlowModel  # noqa: E402
+from src.flowmatching.artifacts import (  # noqa: E402
+    generated_models_dir,
+    resolve_generated_models_dir,
+)
 from src.flowmatching.bn_recalibration import (  # noqa: E402
     has_batchnorm,
     recalibrate_bn_stats,
@@ -258,8 +262,8 @@ def _model_from_flat(flat: torch.Tensor, device: torch.device) -> torch.nn.Modul
     return model.to(device)
 
 
-def _generated_files(result_dir: Path) -> list[Path]:
-    generated_dir = result_dir / "generated_models"
+def _generated_files(result_dir: Path, n_steps: int = 1) -> list[Path]:
+    generated_dir = resolve_generated_models_dir(result_dir, n_steps)
     return sorted(generated_dir.glob("generated_model_*.pt"))
 
 
@@ -285,14 +289,14 @@ def _regenerate_generated_flats(
     if missing:
         raise FileNotFoundError(
             "Cannot regenerate generated weights because required artifacts are "
-            f"missing: {', '.join(missing)}. Re-run the WeightGen job with "
+            f"missing: {', '.join(missing)}. Re-run the DriftWeight job with "
             "--save-generated-models or keep flow_model.pt and pca.npz."
         )
     empty = [str(path) for path in (flow_path, pca_path) if path.stat().st_size == 0]
     if empty:
         raise FileNotFoundError(
             "Cannot regenerate generated weights because required artifacts are "
-            f"empty/corrupt: {', '.join(empty)}. Re-run the WeightGen job with "
+            f"empty/corrupt: {', '.join(empty)}. Re-run the DriftWeight job with "
             "--save-generated-models or keep non-empty flow_model.pt and pca.npz."
         )
     if not zipfile.is_zipfile(pca_path):
@@ -361,7 +365,7 @@ def _regenerate_generated_flats(
     pca = WeightSpacePCA.load(str(pca_path))
     flats = list(pca.inverse_transform(latent, device=str(device)))
     if save_generated:
-        generated_dir = result_dir / "generated_models"
+        generated_dir = generated_models_dir(result_dir, n_steps)
         generated_dir.mkdir(parents=True, exist_ok=True)
         for idx, flat in enumerate(flats):
             torch.save(flat.detach().cpu(), generated_dir / f"generated_model_{idx:04d}.pt")
@@ -392,7 +396,7 @@ def _load_initial_models(args: argparse.Namespace, device: torch.device) -> list
     if args.init_source == "generated":
         if args.result_dir is None:
             raise ValueError("--result-dir is required for --init-source generated")
-        files = _generated_files(args.result_dir)
+        files = _generated_files(args.result_dir, args.generated_steps)
         if files:
             for path in files[: args.n_models]:
                 flat = torch.load(path, map_location=device)
@@ -745,7 +749,7 @@ def main() -> None:
         "--result-dir",
         type=Path,
         default=None,
-        help="WeightGen result directory for generated initializers.",
+        help="DriftWeight result directory for generated initializers.",
     )
     parser.add_argument(
         "--checkpoint-dir",
