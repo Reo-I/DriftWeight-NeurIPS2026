@@ -120,6 +120,11 @@ uv run --locked python -m unittest discover -s tests -v
   output. Previously, later step counts overwrote earlier generated weights.
   Transfer evaluation now selects the requested step count. Legacy flat
   weight directories are accepted only when their recorded step count matches.
+- Per-model saving now clones tensor views so each file contains only that
+  model's storage. CPU output previously serialized the entire 100-model
+  backing tensor into each file (about 10 MB instead of 0.1 MB per MNIST model).
+  The local artifacts were compacted with exact tensor-value equality checked;
+  this does not alter the reported accuracies. Regression tests check storage size.
 - Training rejects existing run artifacts instead of mixing or overwriting
   checkpoints. A too-large generator batch fails early with a useful message.
 - Explicit CPU/MPS/CUDA selection is available in both training CLIs.

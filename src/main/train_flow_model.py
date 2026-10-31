@@ -98,7 +98,8 @@ def evaluate_generated_weights(
 
         for i in range(args.n_samples):
             model_path = output_dir / f"generated_model_{i:04d}.pt"
-            torch.save(generated_weights[i].cpu(), model_path)
+            # A tensor view would serialize the storage of the entire batch.
+            torch.save(generated_weights[i].detach().cpu().clone(), model_path)
 
         logger.info(
             f"Saved {args.n_samples} generated models to {output_dir}"

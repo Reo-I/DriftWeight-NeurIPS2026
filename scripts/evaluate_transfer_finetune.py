@@ -368,7 +368,7 @@ def _regenerate_generated_flats(
         generated_dir = generated_models_dir(result_dir, n_steps)
         generated_dir.mkdir(parents=True, exist_ok=True)
         for idx, flat in enumerate(flats):
-            torch.save(flat.detach().cpu(), generated_dir / f"generated_model_{idx:04d}.pt")
+            torch.save(flat.detach().cpu().clone(), generated_dir / f"generated_model_{idx:04d}.pt")
     return flats
 
 

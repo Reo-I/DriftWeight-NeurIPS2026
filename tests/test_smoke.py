@@ -122,7 +122,11 @@ class ReleaseSmokeTests(unittest.TestCase):
                     run_dir / evaluation[str(steps)]["generated_models_dir"], generated_dir
                 )
                 for path in generated:
-                    self.assertTrue(torch.isfinite(torch.load(path, weights_only=True)).all())
+                    weight = torch.load(path, weights_only=True)
+                    self.assertTrue(torch.isfinite(weight).all())
+                    self.assertEqual(
+                        weight.untyped_storage().nbytes(), weight.numel() * weight.element_size()
+                    )
             checkpoint = torch.load(run_dir / "flow_model.pt", weights_only=True)
             self.assertTrue(math.isfinite(checkpoint["best_loss"]))
             config = json.loads((run_dir / "config.json").read_text())
