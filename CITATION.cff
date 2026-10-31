@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "Please cite the DriftWeight paper when using this code."
+title: "DriftWeight: Repulsive Drift in Mean-Flow Space for Neural Network Weight Generation"
+type: software
+authors:
+  - family-names: Iizuka
+    given-names: Reo
+  - family-names: Shioya
+    given-names: Hiroaki
+  - family-names: Yokoya
+    given-names: Naoto
+repository-code: "https://github.com/Reo-I/DriftWeight-NeurIPS2026"
+version: 0.1.0

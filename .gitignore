@@ -1,0 +1,47 @@
+# Local environments and tooling
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+build/
+dist/
+.DS_Store
+.idea/
+.vscode/
+.claude/
+.codex/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Downloaded data, checkpoints, and generated outputs
+/data/
+/results/
+/checkpoints/
+/log/
+/logs/
+/wandb/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.npy
+*.npz
+*.log
+
+# Paper and presentation artifacts are maintained separately
+*.tex
+*.bib
+*.sty
+*.pdf
+*.pptx
+*.aux
+*.bbl
+*.blg
+*.out
