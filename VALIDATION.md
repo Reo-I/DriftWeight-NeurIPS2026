@@ -139,15 +139,18 @@ Raw data, checkpoints, generated weights, and logs remain local and Git-ignored.
 The numerical JSON artifacts are under `results/validation_mnist16/`; the
 source evaluation is in `data/validation_mnist16/checkpoint/training_stats.json`.
 
-## Remaining release requirements
+## Remaining validation and licensing work
 
 1. Investigate one-step accuracy using the full 100-source MNIST recipe before
    claiming numerical reproduction. Multiple generator/source runs would be
    needed to characterize variability.
 2. Real Fashion-MNIST, CIFAR-10, transfer, CUDA, and large streaming-PCA runs
    were not executed in this check. CIFAR-100/ViT is absent from this snapshot.
-3. Authors must select a redistribution license and confirm third-party
-   attribution and the intended experiment scope before public release.
+3. A redistribution license has not yet been selected. License terms and
+   third-party attribution remain to be confirmed by the authors.
+
+On 2026-11-01, the author approved a public, code-only release without
+pretrained checkpoints. This does not change the validation limitations above.
 
 The original research repository, manuscript, reviewer records, and paper
 results were not modified by this release validation.

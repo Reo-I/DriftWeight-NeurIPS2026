@@ -10,7 +10,7 @@ classifier and evaluated without further training.
 
 ## Scope
 
-This code-only release candidate includes:
+This code-only release includes:
 
 - Source-model training and checkpoint collection.
 - PCA, MeanFlow, repulsive drift, and boundary consistency.
@@ -23,7 +23,7 @@ This code-only release candidate includes:
 The CIFAR-100/ViT-Base experiment is **not included** in this source snapshot.
 Paper sources, PDFs, reviewer correspondence, experiment outputs, datasets,
 and pretrained checkpoints are not bundled. This is not a claim that every
-paper experiment is reproducible from this release candidate.
+paper experiment is reproducible from this release.
 
 ## Installation
 
@@ -191,7 +191,8 @@ Git history are not part of this repository.
 
 ## Release Status
 
-This repository is kept private pending author review. A redistribution license
-has not yet been selected. Before making it public, confirm licensing and
-third-party attribution, decide whether to include the missing ViT experiment,
-and verify the intended reproduction scope. No pretrained weights are provided.
+This is a public, code-only release. Source-model training, generator training,
+and evaluation scripts are provided; pretrained weights are not distributed.
+The experiment coverage and validation limitations are described above and in
+[VALIDATION.md](VALIDATION.md). A redistribution license has not yet been
+specified.
