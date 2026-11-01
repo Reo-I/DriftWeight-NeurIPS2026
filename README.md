@@ -10,7 +10,7 @@ classifier and evaluated without further training.
 
 ## Scope
 
-This code-only release includes:
+This repository provides:
 
 - Source-model training and checkpoint collection.
 - PCA, MeanFlow, repulsive drift, and boundary consistency.
@@ -21,8 +21,8 @@ This code-only release includes:
   generator timing. The Flow Matching implementation is also retained.
 
 The CIFAR-100/ViT-Base experiment is **not included** in this source snapshot.
-Paper sources, PDFs, reviewer correspondence, experiment outputs, datasets,
-and pretrained checkpoints are not bundled. This is not a claim that every
+Paper sources, PDFs, reviewer correspondence, experiment outputs, and datasets
+are not bundled. This is not a claim that every
 paper experiment is reproducible from this release.
 
 ## Installation
@@ -136,8 +136,8 @@ training also needs intermediate checkpoints: collect at least three
 and history-tail filtering. Do not mix datasets, architectures,
 or MLP widths in a checkpoint directory. ResNet evaluation recalibrates BatchNorm
 statistics using the evaluation inputs, matching this implementation's protocol.
-The original checkpoint pool is not distributed, so retraining can change
-numerical results. Source initialization, data-loader randomness, software, and
+Retraining source models can change numerical results.
+Source initialization, data-loader randomness, software, and
 hardware also affect results.
 
 ## Outputs and Utilities
@@ -191,8 +191,8 @@ Git history are not part of this repository.
 
 ## Release Status
 
-This is a public, code-only release. Source-model training, generator training,
-and evaluation scripts are provided; pretrained weights are not distributed.
+The code is publicly available in this repository, including scripts for
+source-model training, generator training, and evaluation.
 The experiment coverage and validation limitations are described above and in
 [VALIDATION.md](VALIDATION.md). A redistribution license has not yet been
 specified.

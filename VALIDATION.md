@@ -149,8 +149,8 @@ source evaluation is in `data/validation_mnist16/checkpoint/training_stats.json`
 3. A redistribution license has not yet been selected. License terms and
    third-party attribution remain to be confirmed by the authors.
 
-On 2026-11-01, the author approved a public, code-only release without
-pretrained checkpoints. This does not change the validation limitations above.
+On 2026-11-01, the author approved making the code publicly available.
+This does not change the validation limitations above.
 
 The original research repository, manuscript, reviewer records, and paper
 results were not modified by this release validation.
