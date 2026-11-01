@@ -1,8 +1,8 @@
-"""Main executable scripts for WeightGen.
+"""Main executable scripts for DriftWeight.
 
 This package contains the main executable scripts:
 - generate_training_data: Train MLP models on MNIST to generate weight data
-- train_flow_model: Train Flow Matching model on collected weights
+- train_flow_model: Train MeanFlow or Flow Matching on collected weights
 
 Usage:
     python -m src.main.generate_training_data [options]

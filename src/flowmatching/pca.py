@@ -8,10 +8,9 @@ which significantly improves training efficiency and generation quality.
 Reference: DeepWeightFlow paper Section 2.3 and Appendix B.
 https://arxiv.org/pdf/2601.05052
 
-For MNIST MLP (784-32-32-10):
-- Original dimension: 26,506 parameters
-- PCA components: 99 (n_models - 1)
-- This reduces the problem to learning in 99D space instead of 26,506D
+The MNIST MLP (784-32-32-10) has 26,506 parameters. The PCA rank depends
+on the fitting population, which can include both final and intermediate
+checkpoints; it is not fixed by the number of final models alone.
 """
 
 import gc

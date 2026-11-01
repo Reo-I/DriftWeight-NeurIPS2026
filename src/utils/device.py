@@ -21,13 +21,13 @@ def get_available_device() -> str:
         return "cpu"
 
 
-def log_device_info() -> None:
+def log_device_info(device: str | None = None) -> None:
     """Log device and GPU information.
 
     Logs device availability and information for CUDA, MPS, or CPU.
     Also warms up the device to avoid lazy initialization warnings.
     """
-    device_str = get_available_device()
+    device_str = device or get_available_device()
 
     if device_str == "cuda" and torch.cuda.is_available():
         # Warm up CUDA to avoid cuBLAS initialization warnings

@@ -16,6 +16,10 @@ def parse_generate_args() -> GenerateConfig:
     parser = argparse.ArgumentParser(
         description="Generate weight data by training models on MNIST/Fashion-MNIST/CIFAR-10"
     )
+    parser.add_argument(
+        "--device", choices=["auto", "cpu", "cuda", "mps"], default="auto",
+        help="Compute device (default: auto selects CUDA, MPS, or CPU).",
+    )
 
     parser.add_argument(
         "--dataset",
@@ -177,7 +181,7 @@ def parse_generate_args() -> GenerateConfig:
         optimizer=optimizer,
         checkpoint_dir=checkpoint_dir,
         save_every_n_iterations=save_every,
-        device=get_available_device(),
+        device=get_available_device() if args.device == "auto" else args.device,
         model=ModelConfig(
             hidden_dim=hidden_dim,
             init_type=args.init_type,

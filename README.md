@@ -10,7 +10,7 @@ classifier and evaluated without further training.
 
 ## Scope
 
-This code-only release candidate includes:
+This code-only release includes:
 
 - Source-model training and checkpoint collection.
 - PCA, MeanFlow, repulsive drift, and boundary consistency.
@@ -23,7 +23,7 @@ This code-only release candidate includes:
 The CIFAR-100/ViT-Base experiment is **not included** in this source snapshot.
 Paper sources, PDFs, reviewer correspondence, experiment outputs, datasets,
 and pretrained checkpoints are not bundled. This is not a claim that every
-paper experiment is reproducible from this release candidate.
+paper experiment is reproducible from this release.
 
 ## Installation
 
@@ -41,13 +41,26 @@ data. They check implementation behavior, not the reported paper accuracies.
 The lockfile fixes dependency versions; full-scale experiments require
 substantial compute, memory, and checkpoint storage. CUDA is recommended for
 paper-scale runs. Training otherwise selects MPS or CPU automatically.
+Both training entry points accept `--device cpu|mps|cuda|auto` for explicit control.
+
+## Local Validation
+
+A real MNIST run completed source training, PCA fitting, 15,000 generator
+iterations, saved-weight evaluation, MaxIoU, and generator checkpoint reload.
+It used 16 source models and 751 PCA components, not the full 100-model preset.
+Mean accuracies for 100 generated models were **88.92% / 95.74% / 96.25%**
+at 1 / 5 / 100 steps. This confirms the workflow runs, **not paper-level
+accuracy or diversity reproduction**; the one-step result needs further
+investigation. See [VALIDATION.md](VALIDATION.md) for conditions, commands,
+checks, and remaining release requirements.
 
 ## MNIST Workflow
 
 Run commands from the repository root. The first command downloads MNIST through
 torchvision and trains 100 source classifiers, saving both final and intermediate
-checkpoints. Use a separate checkpoint directory for a different experiment;
-rerunning in the same directory can overwrite files or retain stale checkpoints.
+checkpoints. Choose unused checkpoint and output directories for each run.
+The training commands reject directories containing earlier run artifacts
+instead of overwriting weights or mixing samples from different runs.
 
 ```bash
 uv run --locked python -m src.main.generate_training_data \
@@ -71,10 +84,13 @@ or of ensemble benefit. CPU or CUDA is recommended for MaxIoU; the evaluator
 avoids MPS by default because small classifiers can yield different argmaxes.
 
 For multi-step accuracy evaluation, append `--eval-steps 1 5 100` to the
-training command. `evaluation_results.json` records each step count, but the
-existing evaluator overwrites `generated_models/` at each step count, leaving
-the largest step count's samples. Use `--eval-steps 1` when evaluating one-step
-MaxIoU from saved weights, as in the default presets above.
+training command. Each step count has its own directory, such as
+`generated_models/steps_1/` or `generated_models/steps_100/`, so samples are
+not overwritten by a different step count. `evaluation_results.json` records
+the matching path. MaxIoU uses `--steps 1` by default; specify another step
+count to evaluate those saved weights. Legacy flat directories are accepted
+only when their recorded last-evaluated step count matches the request.
+Each MaxIoU result is saved to `maxiou_steps_<N>.json` by default.
 
 ## Other Supported Experiments
 
@@ -151,6 +167,7 @@ Only load checkpoints from trusted sources.
 src/           Models, data loaders, PCA, losses, training, and evaluation
 scripts/       Dataset presets and focused evaluation utilities
 tests/         CPU smoke and regression tests
+VALIDATION.md  Real MNIST validation results and limitations
 pyproject.toml Minimal runtime dependencies
 uv.lock        Locked dependency versions
 CITATION.cff   Citation metadata
@@ -174,7 +191,8 @@ Git history are not part of this repository.
 
 ## Release Status
 
-This repository is kept private pending author review. A redistribution license
-has not yet been selected. Before making it public, confirm licensing and
-third-party attribution, decide whether to include the missing ViT experiment,
-and verify the intended reproduction scope. No pretrained weights are provided.
+This is a public, code-only release. Source-model training, generator training,
+and evaluation scripts are provided; pretrained weights are not distributed.
+The experiment coverage and validation limitations are described above and in
+[VALIDATION.md](VALIDATION.md). A redistribution license has not yet been
+specified.

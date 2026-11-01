@@ -15,10 +15,12 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from scripts.compute_maxiou import _masks_to_iou_matrix
-from src.cli import FlowTrainingArgs, parse_flow_args
+from src.cli import FlowTrainingArgs, parse_flow_args, parse_generate_args
 from src.config import GenerateConfig
+from src.flowmatching.artifacts import generated_models_dir, resolve_generated_models_dir
 from src.flowmatching.drifting import compute_V
 from src.flowmatching.pca import WeightSpacePCA
+from src.flowmatching.weight_dataset import create_flow_dataloaders
 from src.flowmatching.weight_space import WeightSpaceObjectStateDict
 from src.main import generate_training_data, train_flow_model
 from src.models import MLP
@@ -111,15 +113,129 @@ class ReleaseSmokeTests(unittest.TestCase):
                 train_flow_model.main()
             for filename in ("flow_model.pt", "pca.npz", "config.json", "evaluation_results.json"):
                 self.assertTrue((run_dir / filename).is_file(), filename)
-            generated = sorted((run_dir / "generated_models").glob("generated_model_*.pt"))
-            self.assertEqual(len(generated), 2)
-            for path in generated:
-                self.assertTrue(torch.isfinite(torch.load(path, weights_only=True)).all())
+            evaluation = json.loads((run_dir / "evaluation_results.json").read_text())
+            for steps in (1, 2):
+                generated_dir = generated_models_dir(run_dir, steps)
+                generated = sorted(generated_dir.glob("generated_model_*.pt"))
+                self.assertEqual(len(generated), 2)
+                self.assertEqual(
+                    run_dir / evaluation[str(steps)]["generated_models_dir"], generated_dir
+                )
+                for path in generated:
+                    weight = torch.load(path, weights_only=True)
+                    self.assertTrue(torch.isfinite(weight).all())
+                    self.assertEqual(
+                        weight.untyped_storage().nbytes(), weight.numel() * weight.element_size()
+                    )
             checkpoint = torch.load(run_dir / "flow_model.pt", weights_only=True)
             self.assertTrue(math.isfinite(checkpoint["best_loss"]))
             config = json.loads((run_dir / "config.json").read_text())
             self.assertTrue(config["use_drift_loss"])
             self.assertEqual(config["pca_fit_source"], "all")
+
+    def test_cpu_override_does_not_auto_select_mps(self):
+        for parser, module in (
+            (parse_flow_args, "src.cli.flow_args"),
+            (parse_generate_args, "src.cli.generate_args"),
+        ):
+            with self.subTest(parser=module), patch.object(sys, "argv", ["cli", "--device", "cpu"]):
+                with patch(f"{module}.get_available_device", return_value="mps") as auto_device:
+                    self.assertEqual(parser().device, "cpu")
+                    auto_device.assert_not_called()
+
+    def test_existing_runs_are_not_overwritten(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_dir = root / "checkpoint"
+            final = source_dir / "seed0000" / "final.pt"
+            final.parent.mkdir(parents=True)
+            final.write_bytes(b"existing source checkpoint")
+            source_config = GenerateConfig(checkpoint_dir=source_dir, device="cpu")
+            with patch.object(generate_training_data, "parse_generate_args", return_value=source_config):
+                with self.assertRaisesRegex(FileExistsError, "new --checkpoint-dir"):
+                    generate_training_data.main()
+            self.assertEqual(final.read_bytes(), b"existing source checkpoint")
+
+            output_dir = root / "run"
+            output_dir.mkdir()
+            model = output_dir / "flow_model.pt"
+            model.write_bytes(b"existing generator")
+            args = FlowTrainingArgs(save_dir=output_dir, device="cpu")
+            with patch.object(train_flow_model, "parse_flow_args", return_value=args):
+                with self.assertRaisesRegex(FileExistsError, "new --save-dir"):
+                    train_flow_model.main()
+            self.assertEqual(model.read_bytes(), b"existing generator")
+
+    def test_step_specific_weights_are_not_overwritten(self):
+        model = MLP(seed=0)
+        flat = WeightSpaceObjectStateDict.from_model(model).flatten().unsqueeze(0)
+        loader = DataLoader(TensorDataset(torch.zeros(1, 1, 28, 28), torch.zeros(1, dtype=torch.long)))
+        with tempfile.TemporaryDirectory() as directory:
+            args = FlowTrainingArgs(save_dir=Path(directory), device="cpu", n_samples=1)
+            train_flow_model.evaluate_generated_weights(flat, args, MLP, loader, n_steps=1)
+            first_file = generated_models_dir(args.save_dir, 1) / "generated_model_0000.pt"
+            first_content = first_file.read_bytes()
+            train_flow_model.evaluate_generated_weights(flat + 0.1, args, MLP, loader, n_steps=5)
+            self.assertEqual(first_content, first_file.read_bytes())
+            second = torch.load(generated_models_dir(args.save_dir, 5) / first_file.name, weights_only=True)
+            torch.testing.assert_close(second, (flat + 0.1)[0])
+
+    def test_legacy_weights_require_matching_step_count(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            legacy = run_dir / "generated_models"
+            legacy.mkdir()
+            (legacy / "generated_model_0000.pt").touch()
+            (run_dir / "config.json").write_text(json.dumps({"eval_steps": [1, 5, 100]}))
+            with self.assertRaisesRegex(ValueError, "100 steps, not 1"):
+                resolve_generated_models_dir(run_dir, 1)
+            self.assertEqual(resolve_generated_models_dir(run_dir, 100), legacy)
+            specific = generated_models_dir(run_dir, 1)
+            specific.mkdir()
+            self.assertEqual(resolve_generated_models_dir(run_dir, 1), specific)
+
+    def test_transfer_loader_selects_requested_step_count(self):
+        from scripts.evaluate_transfer_finetune import _generated_files
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for steps in (1, 5):
+                output_dir = generated_models_dir(root, steps)
+                output_dir.mkdir(parents=True)
+                (output_dir / "generated_model_0000.pt").touch()
+            self.assertEqual(
+                _generated_files(root, 5),
+                [generated_models_dir(root, 5) / "generated_model_0000.pt"],
+            )
+
+    def test_resnet_maxiou_recalibrates_batchnorm(self):
+        from scripts import compute_maxiou
+
+        train, test = object(), object()
+        with patch.object(compute_maxiou, "get_cifar10_loaders", return_value=(train, test)):
+            for arch in ("resnet20", "resnet18"):
+                with self.subTest(arch=arch):
+                    loader, calibration = compute_maxiou._get_test_loader("cifar10", arch)
+                    self.assertIs(loader, test)
+                    self.assertIs(calibration, test)
+
+    def test_leave_one_out_requires_two_models(self):
+        from scripts.compute_maxiou import _loo_maxiou
+
+        with self.assertRaisesRegex(ValueError, "at least two"):
+            _loo_maxiou(np.array([[True, False]]))
+
+    def test_batch_size_cannot_exceed_checkpoint_count(self):
+        weights = [WeightSpaceObjectStateDict.from_model(MLP(hidden_dim=4, seed=seed)) for seed in range(2)]
+        with self.assertRaisesRegex(ValueError, "exceeds the number of final checkpoints"):
+            create_flow_dataloaders(weights, [0, 1], batch_size=3, device="cpu", use_pca=False)
+
+    def test_mps_timing_synchronizes(self):
+        from scripts.benchmark_generation_speed import _synchronize
+
+        with patch("torch.mps.synchronize") as synchronize:
+            _synchronize(torch.device("mps"))
+            synchronize.assert_called_once()
 
     def test_preset_arguments_and_overrides(self):
         expected = {

@@ -106,11 +106,10 @@ class FlowTrainingArgs(BaseModel):
         description="Device to use (cuda, mps, or cpu).",
     )
 
-    # PCA options (critical for matching paper results!)
+    # PCA options
     use_pca: bool = Field(
         True,
-        description="Use PCA dimensionality reduction. "
-        "IMPORTANT: Paper uses PCA with 99 components for 100 models.",
+        description="Use PCA dimensionality reduction; rank depends on the fitting checkpoints.",
     )
     pca_components: int | None = Field(
         None,
@@ -136,8 +135,7 @@ class FlowTrainingArgs(BaseModel):
         ge=0.0,
         le=1.0,
         description="MeanFlow: fraction of batch where r=t "
-        "(instantaneous velocity learning). Paper best: 0.75 "
-        "(25% r!=t in Table 1a).",
+        "(instantaneous velocity learning).",
     )
     mf_t1_ratio: float = Field(
         0.0,
@@ -172,7 +170,7 @@ class FlowTrainingArgs(BaseModel):
         0.0,
         ge=0.0,
         description="MeanFlow: gamma for adaptive L2 loss. "
-        "p=1-gamma. Paper best: gamma=0.0 (p=1.0, Table 1e). "
+        "p=1-gamma. "
         "gamma=0.5 is Pseudo-Huber (p=0.5).",
     )
     mf_jvp_api: Literal["autograd", "functorch"] = Field(
@@ -375,13 +373,13 @@ def parse_flow_args() -> FlowTrainingArgs:
         "--use-pca",
         action="store_true",
         default=True,
-        help="Use PCA dimensionality reduction (default: True, paper uses this)",
+        help="Use PCA dimensionality reduction (default: True)",
     )
     parser.add_argument(
         "--no-pca",
         action="store_false",
         dest="use_pca",
-        help="Disable PCA (not recommended, significantly worse results)",
+        help="Disable PCA dimensionality reduction",
     )
     parser.add_argument(
         "--pca-components",
@@ -389,8 +387,8 @@ def parse_flow_args() -> FlowTrainingArgs:
         default=None,
         help=(
             "Number of PCA components. "
-            "Default: None (auto = n_fit - 1, e.g. 99 for 100 models). "
-            "Explicitly set to override (e.g. 99)."
+            "Default: None (auto = min(n_fit - 1, weight_dim)). "
+            "n_fit includes all selected fitting checkpoints."
         ),
     )
     parser.add_argument(
@@ -430,7 +428,7 @@ def parse_flow_args() -> FlowTrainingArgs:
         "--mf-flow-ratio",
         type=float,
         default=0.75,
-        help="MeanFlow: fraction of batch where r=t (default: 0.75, paper best)",
+        help="MeanFlow: fraction of batch where r=t (default: 0.75)",
     )
     parser.add_argument(
         "--mf-t1-ratio",
@@ -473,7 +471,7 @@ def parse_flow_args() -> FlowTrainingArgs:
         "--mf-loss-gamma",
         type=float,
         default=0.0,
-        help="MeanFlow: adaptive loss gamma, p=1-gamma (default: 0.0, p=1.0 paper best)",
+        help="MeanFlow: adaptive loss gamma, p=1-gamma (default: 0.0, p=1.0)",
     )
     parser.add_argument(
         "--mf-jvp-api",
@@ -579,7 +577,13 @@ def parse_flow_args() -> FlowTrainingArgs:
         help="Numerical epsilon for drift scaling (default: 1e-8)",
     )
 
+    parser.add_argument(
+        "--device", choices=["auto", "cpu", "cuda", "mps"], default="auto",
+        help="Compute device (default: auto selects CUDA, MPS, or CPU).",
+    )
     args = parser.parse_args()
+    if any(step < 1 for step in args.eval_steps):
+        raise ValueError("--eval-steps must contain positive step counts.")
     drift_temperatures = [
         float(item.strip())
         for item in args.drift_temperatures.split(",")
@@ -660,7 +664,7 @@ def parse_flow_args() -> FlowTrainingArgs:
         integration_method=args.integration_method,
         checkpoint_dir=checkpoint_dir,
         save_dir=Path(save_dir),
-        device=get_available_device(),
+        device=get_available_device() if args.device == "auto" else args.device,
         use_pca=args.use_pca,
         pca_components=args.pca_components,
         pca_fit_source=args.pca_fit_source,

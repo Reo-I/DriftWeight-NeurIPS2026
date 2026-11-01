@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Benchmark weight-generation latency from saved WeightGen run artifacts.
+"""Benchmark weight-generation latency from saved DriftWeight run artifacts.
 
 Example:
     uv run scripts/benchmark_generation_speed.py \
@@ -170,6 +170,8 @@ def _flowmatching_generate(
 def _synchronize(device: torch.device) -> None:
     if device.type == "cuda":
         torch.cuda.synchronize(device)
+    elif device.type == "mps":
+        torch.mps.synchronize()
 
 
 def _stats(values: list[float]) -> dict[str, float]:
@@ -288,7 +290,7 @@ def _default_label(method: Method) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Benchmark generation latency from saved WeightGen run directories."
+        description="Benchmark generation latency from saved DriftWeight run directories."
     )
     parser.add_argument(
         "--run-dir",

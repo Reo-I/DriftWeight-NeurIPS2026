@@ -58,9 +58,18 @@ def generate_single_model(config, seed: int, train_loader, test_loader) -> dict:
 def main() -> None:
     """Main entry point for weight generation."""
     config = parse_generate_args()
+    if (
+        (config.checkpoint_dir / "training_stats.json").exists()
+        or any(config.checkpoint_dir.glob("seed*/final.pt"))
+        or any(config.checkpoint_dir.glob("seed*/checkpoint_iter*.pt"))
+    ):
+        raise FileExistsError(
+            f"Checkpoint directory already contains a run: {config.checkpoint_dir}. "
+            "Choose a new --checkpoint-dir to avoid mixing or overwriting weights."
+        )
 
     # Log device information
-    log_device_info()
+    log_device_info(config.device)
 
     logger.info(f"Loading dataset: {config.dataset} ...")
     if config.dataset == "mnist":

@@ -50,8 +50,8 @@ def adaptive_l2_loss(
 
     Args:
         error: Residual tensor of shape (batch_size, dim).
-        gamma: Power parameter. gamma=0.5 is Pseudo-Huber loss,
-               gamma=1.0 is the paper's best setting for ImageNet.
+        gamma: Power parameter controlling adaptive residual weighting.
+               gamma=1.0 gives unweighted squared error.
         c: Small constant for numerical stability.
 
     Returns:
@@ -149,7 +149,6 @@ class WeightSpaceMeanFlow:
                 Fresh noise is sampled as N(0, source_std^2) each iteration.
             sigma: Noise scale added to interpolated points for stability.
             flow_ratio: Fraction of batch where r=t (FM training signal).
-                Paper best: 0.75 (25% r!=t, Table 1a).
             t1_ratio: Fraction of batch where t is forced to 1.
             r0_ratio: Fraction of batch where r is forced to 0.
             onestep_lambda: Weight of 1-step auxiliary loss.
@@ -157,7 +156,6 @@ class WeightSpaceMeanFlow:
             time_dist_mu: Mean parameter for lognorm distribution.
             time_dist_sigma: Std parameter for lognorm distribution.
             loss_gamma: Gamma parameter for adaptive L2 loss (p=1-gamma).
-                Paper best: 0.0 (p=1.0, Table 1e). 0.5 = Pseudo-Huber.
             jvp_api: JVP computation backend.
                 'autograd' uses torch.autograd.functional.jvp,
                 'functorch' uses torch.func.jvp.

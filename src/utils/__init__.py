@@ -1,4 +1,4 @@
-"""Utility modules for WeightGen."""
+"""Utility modules for DriftWeight."""
 
 from src.utils.device import get_available_device, log_device_info
 from src.utils.logger import logger

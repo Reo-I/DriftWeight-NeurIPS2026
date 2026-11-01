@@ -233,9 +233,8 @@ def create_flow_dataloaders(
     ) -> tuple[DataLoader, int, WeightSpacePCA | None]:
     """Create target DataLoader for Flow Matching / MeanFlow.
 
-    When use_pca=True, applies PCA dimensionality reduction to the weight
-    space. This is crucial for achieving good generation quality - the
-    DeepWeightFlow paper uses 99 components for 100 training models.
+    When use_pca=True, fit PCA on the supplied fitting population and
+    transform the final-checkpoint targets into that space.
 
     Args:
         weight_objects: List of WeightSpaceObjectStateDict to use as targets.
@@ -244,7 +243,7 @@ def create_flow_dataloaders(
         device: Device for tensors.
         use_pca: Whether to apply PCA dimensionality reduction.
         pca_components: Number of PCA components. If None and use_pca=True,
-                        uses n_models - 1 (max possible).
+                        uses min(n_fit - 1, weight_dim).
         pca_fit_weights: Pre-flattened weight tensor to fit PCA on.
                          If None, PCA is fit on target weights (default).
                          Useful for fitting PCA on a larger set (e.g. final + history).
@@ -258,6 +257,11 @@ def create_flow_dataloaders(
     # Stack all flattened weights as target distribution
     target_weights = torch.stack([wso.flatten(device=device) for wso in weight_objects])
     n_models, weight_dim = target_weights.shape
+    if n_models < batch_size:
+        raise ValueError(
+            f"Generator batch size ({batch_size}) exceeds the number of final "
+            f"checkpoints ({n_models}). Reduce --batch-size or collect more checkpoints."
+        )
     if len(seed_ids) != n_models:
         raise ValueError(
             f"seed_ids length {len(seed_ids)} must match models {n_models}"
