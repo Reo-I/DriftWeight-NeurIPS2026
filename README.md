@@ -20,11 +20,6 @@ This repository provides:
 - Auxiliary scripts for source-model evaluation, transfer evaluation, and
   generator timing. The Flow Matching implementation is also retained.
 
-The CIFAR-100/ViT-Base experiment is **not included** in this source snapshot.
-Paper sources, PDFs, reviewer correspondence, experiment outputs, and datasets
-are not bundled. This is not a claim that every
-paper experiment is reproducible from this release.
-
 ## Installation
 
 Use Python 3.12 and [uv](https://docs.astral.sh/uv/).
@@ -42,17 +37,6 @@ The lockfile fixes dependency versions; full-scale experiments require
 substantial compute, memory, and checkpoint storage. CUDA is recommended for
 paper-scale runs. Training otherwise selects MPS or CPU automatically.
 Both training entry points accept `--device cpu|mps|cuda|auto` for explicit control.
-
-## Local Validation
-
-A real MNIST run completed source training, PCA fitting, 15,000 generator
-iterations, saved-weight evaluation, MaxIoU, and generator checkpoint reload.
-It used 16 source models and 751 PCA components, not the full 100-model preset.
-Mean accuracies for 100 generated models were **88.92% / 95.74% / 96.25%**
-at 1 / 5 / 100 steps. This confirms the workflow runs, **not paper-level
-accuracy or diversity reproduction**; the one-step result needs further
-investigation. See [VALIDATION.md](VALIDATION.md) for conditions, commands,
-checks, and remaining release requirements.
 
 ## MNIST Workflow
 
